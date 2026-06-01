@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AR Device Checker</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: #1e1e2e;
+    --accent-ar: #00e5a0;
+    --accent-mr: #7c6cff;
+    --accent-no: #ff4d6d;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+
+  html, body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-head);
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(124, 108, 255, 0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(0, 229, 160, 0.06) 0%, transparent 50%);
+    min-height: 100vh;
+  }
+
+  .grid-bg {
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(30,30,46,0.5) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30,30,46,0.5) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2.5rem;
+  }
+
+  .header {
+    text-align: center;
+  }
+
+  .header .label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent-ar);
+    margin-bottom: 0.75rem;
+  }
+
+  .header h1 {
+    font-size: clamp(2rem, 6vw, 3.2rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+  }
+
+  .header h1 span {
+    background: linear-gradient(135deg, var(--accent-ar), var(--accent-mr));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .header p {
+    margin-top: 0.75rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-family: var(--font-mono);
+    line-height: 1.6;
+  }
+
+  .search-box {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: border-color 0.2s;
+  }
+
+  .search-box:focus-within {
+    border-color: var(--accent-mr);
+  }
+
+  .input-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  .input-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    font-family: var(--font-head);
+    font-size: 1rem;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input[type="text"]:focus {
+    border-color: var(--accent-mr);
+  }
+
+  input[type="text"]::placeholder {
+    color: var(--muted);
+  }
+
+  button.check-btn {
+    background: linear-gradient(135deg, var(--accent-ar), var(--accent-mr));
+    border: none;
+    border-radius: 10px;
+    padding: 0.85rem 1.5rem;
+    font-family: var(--font-head);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0a0a0f;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s, transform 0.1s;
+    letter-spacing: -0.01em;
+  }
+
+  button.check-btn:hover { opacity: 0.9; }
+  button.check-btn:active { transform: scale(0.97); }
+
+  /* Autocomplete */
+  .suggestions {
+    display: none;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg);
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .suggestions.visible {
+    display: flex;
+  }
+
+  .suggestion-item {
+    padding: 0.65rem 1rem;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    color: var(--muted);
+    transition: background 0.1s, color 0.1s;
+    border-bottom: 1px solid var(--border);
+    line-height: 1.4;
+  }
+
+  .suggestion-item:last-child { border-bottom: none; }
+
+  .suggestion-item:hover, .suggestion-item.active {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .suggestion-item .mfr {
+    font-size: 0.72rem;
+    color: var(--accent-ar);
+    margin-right: 0.4rem;
+  }
+
+  .suggestion-item .depth-tag {
+    float: right;
+    font-size: 0.68rem;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(124,108,255,0.15);
+    color: var(--accent-mr);
+  }
+
+  /* Result */
+  .result {
+    display: none;
+    width: 100%;
+    border-radius: 16px;
+    padding: 1.75rem;
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.3s ease;
+  }
+
+  .result.visible { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result.ar-only {
+    background: rgba(0, 229, 160, 0.05);
+    border: 1px solid rgba(0, 229, 160, 0.25);
+  }
+
+  .result.ar-mr {
+    background: rgba(124, 108, 255, 0.07);
+    border: 1px solid rgba(124, 108, 255, 0.3);
+  }
+
+  .result.not-found {
+    background: rgba(255, 77, 109, 0.05);
+    border: 1px solid rgba(255, 77, 109, 0.2);
+  }
+
+  .result-glow {
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 140px; height: 140px;
+    border-radius: 50%;
+    filter: blur(40px);
+    pointer-events: none;
+  }
+
+  .ar-only .result-glow { background: rgba(0, 229, 160, 0.2); }
+  .ar-mr .result-glow { background: rgba(124, 108, 255, 0.25); }
+  .not-found .result-glow { background: rgba(255, 77, 109, 0.15); }
+
+  .result-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-bottom: 0.75rem;
+  }
+
+  .ar-only .result-badge { background: rgba(0,229,160,0.15); color: var(--accent-ar); }
+  .ar-mr .result-badge { background: rgba(124,108,255,0.15); color: var(--accent-mr); }
+  .not-found .result-badge { background: rgba(255,77,109,0.15); color: var(--accent-no); }
+
+  .result-title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.4rem;
+  }
+
+  .ar-only .result-title { color: var(--accent-ar); }
+  .ar-mr .result-title { color: #a89cff; }
+  .not-found .result-title { color: var(--accent-no); }
+
+  .result-device {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
+
+  .caps-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .cap {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.05);
+    color: var(--muted);
+  }
+
+  .cap.on { background: rgba(0,229,160,0.1); color: var(--accent-ar); }
+  .cap.on.depth { background: rgba(124,108,255,0.1); color: #a89cff; }
+
+  .result-desc {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-top: 0.5rem;
+  }
+
+  .footer {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .footer a {
+    color: var(--accent-ar);
+    text-decoration: none;
+  }
+
+  .footer a:hover { text-decoration: underline; }
+
+  /* Scrollbar */
+  .suggestions::-webkit-scrollbar { width: 4px; }
+  .suggestions::-webkit-scrollbar-track { background: transparent; }
+  .suggestions::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="wrapper">
+  <div class="header">
+    <div class="label">ARCore Device Checker</div>
+    <h1>Проверь <span>AR / MR</span><br>поддержку</h1>
+    <p>Введи модель устройства — узнай,<br>поддерживает ли оно ARCore и Depth API</p>
+  </div>
+
+  <div class="search-box">
+    <div class="input-row">
+      <div class="input-wrap">
+        <input type="text" id="deviceInput" placeholder="Например: Samsung Galaxy S24, Pixel 8..." autocomplete="off" spellcheck="false">
+      </div>
+      <button class="check-btn" onclick="checkDevice()">Проверить</button>
+    </div>
+    <div class="suggestions" id="suggestions"></div>
+  </div>
+
+  <div class="result" id="result">
+    <div class="result-glow"></div>
+    <div class="result-badge" id="resultBadge"></div>
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-device" id="resultDevice"></div>
+    <div class="result-desc" id="resultDesc"></div>
+    <div class="caps-list" id="capsList"></div>
+  </div>
+
+  <div class="footer">
+    Данные: <a href="https://developers.google.com/ar/devices?hl=ru" target="_blank">developers.google.com/ar/devices</a>
+    &nbsp;·&nbsp; Список актуален на июнь 2026
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Embedded device database (parsed from Google ARCore page)
+// Format: [manufacturer, model, hasDepth]
+// ============================================================
+const DEVICES = [
+  // Asus
+  ["Asus","ROG Phone",false],
+  ["Asus","ROG Phone II",false],
+  ["Asus","ROG Phone III",true],
+  ["Asus","ROG Phone 5",true],
+  ["Asus","ROG Phone 6 (AI2201)",true],
+  ["Asus","ROG Phone 6D Ultimate (AI2201)",true],
+  ["Asus","ROG Phone 7 (AI2205)",true],
+  ["Asus","ROG Phone 8 series",true],
+  ["Asus","ROG Phone 9",true],
+  ["Asus","Zenfone 6",false],
+  ["Asus","Zenfone 7/7 Pro",true],
+  ["Asus","Zenfone 8",true],
+  ["Asus","Zenfone 9",true],
+  ["Asus","Zenfone 10 (AI2302)",true],
+  ["Asus","Zenfone AR",false],
+  ["Asus","Zenfone ARES",false],
+  // Balmuda
+  ["Balmuda","Balmuda Phone",true],
+  // Bluebird
+  ["Bluebird","HF550X",true],
+  // CMF by Nothing
+  ["CMF by Nothing","CMF by Nothing Phone 1",true],
+  // Datalogic
+  ["Datalogic","Memor 12",true],
+  ["Datalogic","Memor 17",true],
+  ["Datalogic","Memor 30",true],
+  ["Datalogic","Memor 35",true],
+  // Fujitsu
+  ["Fujitsu","arrows 5G F-51A",true],
+  ["Fujitsu","arrows NX9 F-52A",true],
+  // FCNT
+  ["FCNT","arrows BZ03",true],
+  ["FCNT","arrows N F-51C",true],
+  ["FCNT","arrows We2 Plus F-51E",true],
+  ["FCNT","arrows We2 Plus M06",true],
+  ["FCNT","arrows We2 M07",true],
+  ["FCNT","arrows We A101FC",false],
+  ["FCNT","arrows We F-51B",false],
+  ["FCNT","arrows We FCG01",false],
+  ["FCNT","arrows We2 A402FC",false],
+  ["FCNT","F-53E",true],
+  // General Mobile
+  ["General Mobile","GM 9 Plus",false],
+  // GETAC
+  ["GETAC","ZX10G2",true],
+  ["GETAC","ZX80",true],
+  // Google
+  ["Google","Nexus 5X",false],
+  ["Google","Nexus 6P",false],
+  ["Google","Pixel",false],
+  ["Google","Pixel XL",false],
+  ["Google","Pixel 2",true],
+  ["Google","Pixel 2 XL",true],
+  ["Google","Pixel 3",true],
+  ["Google","Pixel 3 XL",true],
+  ["Google","Pixel 3a",true],
+  ["Google","Pixel 3a XL",true],
+  ["Google","Pixel 4",true],
+  ["Google","Pixel 4 XL",true],
+  ["Google","Pixel 4a",true],
+  ["Google","Pixel 4a 5G",true],
+  ["Google","Pixel 5",true],
+  ["Google","Pixel 5a 5G",true],
+  ["Google","Pixel 6",true],
+  ["Google","Pixel 6a",true],
+  ["Google","Pixel 6 Pro",true],
+  ["Google","Pixel 7",true],
+  ["Google","Pixel 7a",true],
+  ["Google","Pixel 7 Pro",true],
+  ["Google","Pixel 8",true],
+  ["Google","Pixel 8 Pro",true],
+  ["Google","Pixel 8a",true],
+  ["Google","Pixel 9",true],
+  ["Google","Pixel 9 Pro",true],
+  ["Google","Pixel 9 Pro XL",true],
+  ["Google","Pixel Fold",true],
+  ["Google","Pixel Tablet",true],
+  // HMD Global / Nokia
+  ["HMD Global","Nokia 3.4",false],
+  ["HMD Global","Nokia 5.4",false],
+  ["HMD Global","Nokia 6 (2018)",false],
+  ["HMD Global","Nokia 6.1 Plus",false],
+  ["HMD Global","Nokia 6.2",false],
+  ["HMD Global","Nokia 7 Plus",false],
+  ["HMD Global","Nokia 7.1",false],
+  ["HMD Global","Nokia 7.2",false],
+  ["HMD Global","Nokia 8",false],
+  ["HMD Global","Nokia 8 Sirocco",false],
+  ["HMD Global","Nokia 8.1",false],
+  ["HMD Global","Nokia 8.3 5G",false],
+  ["HMD Global","Nokia G50",true],
+  ["HMD Global","Nokia X10",true],
+  ["HMD Global","Nokia X30 5G",true],
+  // Honor
+  ["Honor","HONOR 70",true],
+  ["Honor","HONOR 90",true],
+  ["Honor","HONOR 200",true],
+  ["Honor","HONOR 200 Pro",true],
+  ["Honor","HONOR 400",true],
+  ["Honor","HONOR 400 Pro",true],
+  ["Honor","HONOR Magic Vs",true],
+  ["Honor","HONOR Magic V2",true],
+  ["Honor","HONOR Magic V3",true],
+  ["Honor","HONOR Magic4 Pro",true],
+  ["Honor","HONOR Magic5",true],
+  ["Honor","HONOR Magic5 Pro",true],
+  ["Honor","HONOR Magic6 Lite 5G",true],
+  ["Honor","HONOR Magic7 Lite",true],
+  ["Honor","HONOR X9c Smart",true],
+  // Honeywell
+  ["Honeywell","CT30XP",true],
+  ["Honeywell","CT40",true],
+  ["Honeywell","CK67",true],
+  ["Honeywell","CT37",true],
+  ["Honeywell","CT45XP",true],
+  // HTC
+  ["HTC","Desire 21 Pro 5G",true],
+  ["HTC","HTC U23",true],
+  ["HTC","HTC U23 pro",true],
+  // Huawei
+  ["Huawei","Honor 8X",false],
+  ["Huawei","Honor 10",true],
+  ["Huawei","Honor View 10 Lite",false],
+  ["Huawei","Honor V20",true],
+  ["Huawei","Mate 20 Lite",true],
+  ["Huawei","Mate 20",true],
+  ["Huawei","Mate 20 Pro",true],
+  ["Huawei","Mate 20 X",true],
+  ["Huawei","Nova 3",true],
+  ["Huawei","Nova 3i",true],
+  ["Huawei","Nova 4",true],
+  ["Huawei","P20",true],
+  ["Huawei","P20 Pro",false],
+  ["Huawei","P30",true],
+  ["Huawei","P30 Pro",false],
+  ["Huawei","Porsche Design Mate RS",false],
+  ["Huawei","Porsche Design Mate 20 RS",false],
+  ["Huawei","Y9 2019",false],
+  // Infinix
+  ["Infinix Mobile","GT 10 Pro",true],
+  ["Infinix Mobile","GT 30 Pro",true],
+  ["Infinix Mobile","HOT 40 Pro",true],
+  ["Infinix Mobile","HOT 50 Pro+",true],
+  ["Infinix Mobile","HOT 60 Pro+",true],
+  ["Infinix Mobile","Infinix HOT 60i",true],
+  ["Infinix Mobile","Infinix HOT 60 Pro",true],
+  ["Infinix Mobile","Infinix Zero 40",true],
+  ["Infinix Mobile","Infinix Zero 40 5G",true],
+  ["Infinix Mobile","Infinix ZERO Flip",true],
+  ["Infinix Mobile","Note 50 Pro",true],
+  ["Infinix Mobile","Note 50 Pro+ 5G",true],
+  ["Infinix Mobile","Note 50S 5G",true],
+  ["Infinix Mobile","Note 50X 5G",true],
+  ["Infinix Mobile","Note 6",false],
+  ["Infinix Mobile","Note 7",false],
+  ["Infinix Mobile","Note 10 Pro",false],
+  ["Infinix Mobile","Note 11",false],
+  ["Infinix Mobile","Note 11 Pro",true],
+  ["Infinix Mobile","Note 11S",true],
+  ["Infinix Mobile","Note 12",false],
+  ["Infinix Mobile","NOTE 12 2023",true],
+  ["Infinix Mobile","Note 12 VIP",true],
+  ["Infinix Mobile","Note 30",true],
+  ["Infinix Mobile","Note 30 Pro",true],
+  ["Infinix Mobile","Note 30 5G",true],
+  ["Infinix Mobile","Note 30i",true],
+  ["Infinix Mobile","Note 40",true],
+  ["Infinix Mobile","Note 40 Pro",true],
+  ["Infinix Mobile","Zero 5G",true],
+  ["Infinix Mobile","Zero 5G 2023",true],
+  ["Infinix Mobile","Zero 8",false],
+  ["Infinix Mobile","Zero 8i",false],
+  ["Infinix Mobile","ZERO 20",true],
+  ["Infinix Mobile","ZERO 30",true],
+  ["Infinix Mobile","ZERO 30 5G",true],
+  ["Infinix Mobile","ZERO ULTRA",true],
+  ["Infinix Mobile","ZERO X",true],
+  ["Infinix Mobile","ZERO X Pro",true],
+  ["Infinix Mobile","ZERO X NEO",true],
+  // Itel
+  ["Itel","itel S23+",true],
+  // Kyocera
+  ["Kyocera","Android One S9",true],
+  ["Kyocera","Android One S10",true],
+  ["Kyocera","Torque 5G",true],
+  ["Kyocera","Torque G04",false],
+  ["Kyocera","Torque G06",true],
+  ["Kyocera","Duraforce Ex",true],
+  ["Kyocera","Duraforce PRO 3",true],
+  ["Kyocera","Duraforce Ultra 5G",false],
+  ["Kyocera","DuraSport 5G",false],
+  ["Kyocera","DIGNO SANGA edition",true],
+  // Lenovo
+  ["Lenovo","Lenovo K13 Note",true],
+  ["Lenovo","Lenovo Idea Tab Pro",true],
+  ["Lenovo","Lenovo Tab Extreme",true],
+  ["Lenovo","Lenovo Tab 7",true],
+  ["Lenovo","Lenovo Tab K11 Plus",true],
+  ["Lenovo","Lenovo Tab M10 5G",true],
+  ["Lenovo","Lenovo Tab M10 Plus 3rd Gen",true],
+  ["Lenovo","Lenovo Tab M11",true],
+  ["Lenovo","Lenovo Tab P11 2nd Gen",true],
+  ["Lenovo","Lenovo Tab P11 5G",true],
+  ["Lenovo","Lenovo Tab P11 Plus",false],
+  ["Lenovo","Lenovo Tab P11 Pro (2nd Gen)",true],
+  ["Lenovo","Lenovo Tab Plus",true],
+  ["Lenovo","Lenovo Tab P12",true],
+  ["Lenovo","Lenovo Tab P12 Pro",true],
+  ["Lenovo","Lenovo LAVIE Tab 102K1",true],
+  ["Lenovo","Lenovo LAVIE Tab T12 12QHD1",false],
+  ["Lenovo","Lenovo Legion Tab (8.8\", 3)",true],
+  ["Lenovo","Lenovo Yoga Tab Plus",true],
+  ["Lenovo","Lenovo Yoga Tab 11",true],
+  // LG
+  ["LG","G6",false],
+  ["LG","G7 Fit",false],
+  ["LG","G7 One",false],
+  ["LG","G7 ThinQ",false],
+  ["LG","G8 ThinQ",false],
+  ["LG","G8S ThinQ",false],
+  ["LG","G8X ThinQ",true],
+  ["LG","G Pad 5 10.1 FHD",false],
+  ["LG","K61",false],
+  ["LG","K71",false],
+  ["LG","K92",true],
+  ["LG","Q6",false],
+  ["LG","Q70",false],
+  ["LG","Q8",false],
+  ["LG","Q92",true],
+  ["LG","Stylo 5",false],
+  ["LG","Stylo 6",false],
+  ["LG","Stylo 7",true],
+  ["LG","V30",false],
+  ["LG","V30+",false],
+  ["LG","V30+ JOJO",false],
+  ["LG","V35 ThinQ",true],
+  ["LG","V40 ThinQ",false],
+  ["LG","V50 ThinQ",false],
+  ["LG","V50S ThinQ",true],
+  ["LG","V60 ThinQ",true],
+  ["LG","V60 ThinQ 5G",true],
+  ["LG","VELVET 5G",true],
+  ["LG","VELVET 2 Pro",true],
+  ["LG","WING 5G",true],
+  // Motorola
+  ["Motorola","moto g⁵ˢ plus",false],
+  ["Motorola","moto g⁶",false],
+  ["Motorola","moto g⁶ plus",false],
+  ["Motorola","moto g⁷",false],
+  ["Motorola","moto g⁷ play",false],
+  ["Motorola","moto g⁷ plus",false],
+  ["Motorola","moto g⁷ power",false],
+  ["Motorola","moto g⁸",false],
+  ["Motorola","moto g⁸ play",false],
+  ["Motorola","moto g⁸ plus",false],
+  ["Motorola","moto g⁸ power",false],
+  ["Motorola","moto g⁸ power lite",false],
+  ["Motorola","moto g⁹ play",false],
+  ["Motorola","moto g⁹ plus",true],
+  ["Motorola","moto g⁹ power",true],
+  ["Motorola","moto g 5G",true],
+  ["Motorola","moto g 5G (2022)",true],
+  ["Motorola","moto g power",false],
+  ["Motorola","moto g power (2021)",true],
+  ["Motorola","moto g power (2022)",false],
+  ["Motorola","moto g power 5G (2023)",true],
+  ["Motorola","moto g stylus",false],
+  ["Motorola","moto g stylus (2021)",true],
+  ["Motorola","moto g stylus (2022)",false],
+  ["Motorola","moto g stylus (2023)",true],
+  ["Motorola","moto g stylus 5G",true],
+  ["Motorola","moto g stylus 5G (2022)",true],
+  ["Motorola","moto g stylus 5G (2023)",true],
+  ["Motorola","moto g stylus 5G (2025)",true],
+  ["Motorola","moto g24",true],
+  ["Motorola","moto g31",false],
+  ["Motorola","moto g32",true],
+  ["Motorola","moto g34 5G",true],
+  ["Motorola","moto g35 5G",true],
+  ["Motorola","moto g42",true],
+  ["Motorola","moto g51 5G",true],
+  ["Motorola","moto g52",true],
+  ["Motorola","moto g53",true],
+  ["Motorola","moto g53 5G",true],
+  ["Motorola","moto g54 5G",true],
+  ["Motorola","moto g55 5G",true],
+  ["Motorola","moto g62 5G",true],
+  ["Motorola","moto g71 5G",true],
+  ["Motorola","moto g72",true],
+  ["Motorola","moto g73 5G",true],
+  ["Motorola","moto g75 5G",true],
+  ["Motorola","moto g82 5G",true],
+  ["Motorola","moto g84 5G",true],
+  ["Motorola","moto g200 5G",true],
+  ["Motorola","motorola edge",true],
+  ["Motorola","motorola edge (2021)",true],
+  ["Motorola","motorola edge (2022)",true],
+  ["Motorola","motorola edge (2023)",true],
+  ["Motorola","motorola edge s",true],
+  ["Motorola","motorola edge plus",true],
+  ["Motorola","motorola edge plus (2022)",true],
+  ["Motorola","motorola edge 20",true],
+  ["Motorola","motorola edge 20 lite",true],
+  ["Motorola","motorola edge 20 pro",true],
+  ["Motorola","motorola edge 30",true],
+  ["Motorola","motorola edge 30 fusion",true],
+  ["Motorola","motorola edge 30 neo",true],
+  ["Motorola","motorola edge 30 Pro",true],
+  ["Motorola","motorola edge 30 ultra",true],
+  ["Motorola","motorola edge 40",true],
+  ["Motorola","motorola edge 40 neo",true],
+  ["Motorola","motorola edge 50 neo",true],
+  ["Motorola","motorola edge 60 fusion",true],
+  ["Motorola","motorola edge 60 stylus",true],
+  ["Motorola","motorola one",false],
+  ["Motorola","motorola one 5G",true],
+  ["Motorola","motorola one action",false],
+  ["Motorola","motorola one fusion",true],
+  ["Motorola","motorola one fusion+",true],
+  ["Motorola","motorola one hyper",false],
+  ["Motorola","motorola one macro",false],
+  ["Motorola","motorola one power",false],
+  ["Motorola","motorola one vision",false],
+  ["Motorola","motorola one zoom",false],
+  ["Motorola","motorola Razr(2020)",true],
+  ["Motorola","motorola Razr(2022)",true],
+  ["Motorola","motorola Razr 40",true],
+  ["Motorola","motorola Razr 40 Ultra",true],
+  ["Motorola","motorola Razr 50D M-51E",true],
+  ["Motorola","moto x⁴",false],
+  ["Motorola","moto z² force",false],
+  ["Motorola","moto z³",false],
+  ["Motorola","moto z³ play",false],
+  ["Motorola","moto z⁴",false],
+  // Nothing
+  ["Nothing","Nothing Phone (1)",true],
+  ["Nothing","Nothing Phone (2)",true],
+  ["Nothing","Nothing Phone (2) Pro",true],
+  ["Nothing","Nothing Phone (2a)",true],
+  ["Nothing","Nothing Phone (2a) Plus",true],
+  ["Nothing","Nothing Phone (3a)",true],
+  // OnePlus
+  ["OnePlus","OnePlus 3T",false],
+  ["OnePlus","OnePlus 5",false],
+  ["OnePlus","OnePlus 5T",false],
+  ["OnePlus","OnePlus 6",true],
+  ["OnePlus","OnePlus 6T",true],
+  ["OnePlus","OnePlus 7",true],
+  ["OnePlus","OnePlus 7 Pro",true],
+  ["OnePlus","OnePlus 7 Pro 5G",true],
+  ["OnePlus","OnePlus 7T",true],
+  ["OnePlus","OnePlus 7T Pro",true],
+  ["OnePlus","OnePlus 8",true],
+  ["OnePlus","OnePlus 8 Pro",true],
+  ["OnePlus","OnePlus 8T",true],
+  ["OnePlus","OnePlus 9",true],
+  ["OnePlus","OnePlus 9 Pro",true],
+  ["OnePlus","OnePlus 9R",true],
+  ["OnePlus","OnePlus 9RT 5G",true],
+  ["OnePlus","OnePlus 10 Pro",true],
+  ["OnePlus","OnePlus 10 Pro 5G",true],
+  ["OnePlus","OnePlus 10R 5G",true],
+  ["OnePlus","OnePlus 10T 5G",true],
+  ["OnePlus","OnePlus 11 5G",true],
+  ["OnePlus","OnePlus 11R 5G",true],
+  ["OnePlus","OnePlus 12",true],
+  ["OnePlus","OnePlus 13",true],
+  ["OnePlus","OnePlus 13R",true],
+  ["OnePlus","OnePlus 13S",true],
+  ["OnePlus","OnePlus 13T",true],
+  ["OnePlus","OnePlus Ace 5",true],
+  ["OnePlus","OnePlus N10",true],
+  ["OnePlus","OnePlus Nord",true],
+  ["OnePlus","OnePlus Nord 2 5G",true],
+  ["OnePlus","OnePlus Nord 2T 5G",true],
+  ["OnePlus","OnePlus Nord 3 5G",true],
+  ["OnePlus","OnePlus Nord 4",true],
+  ["OnePlus","OnePlus Nord 5",true],
+  ["OnePlus","OnePlus Nord CE",true],
+  ["OnePlus","OnePlus Nord CE 2",false],
+  ["OnePlus","OnePlus Nord CE 2 Lite 5G",true],
+  ["OnePlus","OnePlus Nord CE 3 5G",true],
+  ["OnePlus","OnePlus Nord CE4 Lite 5G",true],
+  ["OnePlus","OnePlus Nord N20 5G",true],
+  ["OnePlus","OnePlus Nord N200 5G",true],
+  ["OnePlus","OnePlus Open",true],
+  ["OnePlus","OnePlus Pad",true],
+  ["OnePlus","Nord CE5",true],
+  // Oppo
+  ["Oppo","A3 Pro 5G",true],
+  ["Oppo","A5 Pro 5G",true],
+  ["Oppo","A52",false],
+  ["Oppo","A72",false],
+  ["Oppo","A72 5G",false],
+  ["Oppo","A77 5G",true],
+  ["Oppo","A78 5G",true],
+  ["Oppo","A79 5G",true],
+  ["Oppo","A92",false],
+  ["Oppo","A92s",false],
+  ["Oppo","A93 5G",false],
+  ["Oppo","A94",true],
+  ["Oppo","A96 5G",true],
+  ["Oppo","F11 Pro",false],
+  ["Oppo","F15",false],
+  ["Oppo","F17 Pro",false],
+  ["Oppo","F19 Pro+",true],
+  ["Oppo","F21 Pro 5G",true],
+  ["Oppo","F21s Pro 5G",true],
+  ["Oppo","F27 Pro+ 5G",true],
+  ["Oppo","F29 5G",true],
+  ["Oppo","Find N2 Flip",true],
+  ["Oppo","Find N3",true],
+  ["Oppo","Find N3 Flip",true],
+  ["Oppo","Find N5",true],
+  ["Oppo","Find X2",true],
+  ["Oppo","Find X2 Pro",true],
+  ["Oppo","Find X3 Pro",true],
+  ["Oppo","Find X5",true],
+  ["Oppo","Find X5 Pro",true],
+  ["Oppo","Find X6 Pro",true],
+  ["Oppo","Find X8",true],
+  ["Oppo","Find X8 Pro",true],
+  ["Oppo","K3",false],
+  ["Oppo","K5",false],
+  ["Oppo","K12 Plus",true],
+  ["Oppo","K12x 5G",true],
+  ["Oppo","K13 5G",true],
+  ["Oppo","Pad 2",true],
+  ["Oppo","Pad 3 Pro",true],
+  ["Oppo","R17 Pro",false],
+  ["Oppo","Reno",false],
+  ["Oppo","Reno2",false],
+  ["Oppo","Reno2 F",false],
+  ["Oppo","Reno2 Z",false],
+  ["Oppo","Reno3",false],
+  ["Oppo","Reno3 5G",true],
+  ["Oppo","Reno3 A",false],
+  ["Oppo","Reno3 Pro",false],
+  ["Oppo","Reno3 Pro 5G",false],
+  ["Oppo","Reno4 4G",false],
+  ["Oppo","Reno4 SE 5G",true],
+  ["Oppo","Reno5",true],
+  ["Oppo","Reno5 A",true],
+  ["Oppo","Reno5 5G",false],
+  ["Oppo","Reno5 Pro 4G",false],
+  ["Oppo","Reno5 Pro 5G",true],
+  ["Oppo","Reno5 Pro+ 5G",true],
+  ["Oppo","Reno6 Pro+ 5G",false],
+  ["Oppo","Reno7 A",true],
+  ["Oppo","Reno7 5G",true],
+  ["Oppo","Reno7 Pro 5G",true],
+  ["Oppo","Reno7 Z 5G",true],
+  ["Oppo","Reno8 T",true],
+  ["Oppo","Reno8 T 5G",true],
+  ["Oppo","Reno 10 5G",true],
+  ["Oppo","Reno 10 Pro 5G",true],
+  ["Oppo","Reno 10 Pro+ 5G",true],
+  ["Oppo","Reno 10x Zoom",false],
+  ["Oppo","Reno 11",true],
+  ["Oppo","Reno 11 Pro",true],
+  ["Oppo","Reno13 5G",true],
+  ["Oppo","Reno13 F",true],
+  ["Oppo","Reno13 F 5G",true],
+  ["Oppo","Reno13 Pro 5G",true],
+  ["Oppo","Reno14 5G",true],
+  ["Oppo","Reno14 F 5G",true],
+  ["Oppo","Reno14 Pro 5G",true],
+  ["Oppo","Reno A",false],
+  ["Oppo","Reno Z",false],
+  // realme
+  ["realme","5",false],
+  ["realme","5 Pro",false],
+  ["realme","6",false],
+  ["realme","6 Pro",false],
+  ["realme","7",false],
+  ["realme","7i",false],
+  ["realme","7 Pro",false],
+  ["realme","8 Pro",false],
+  ["realme","X",false],
+  ["realme","X2",false],
+  ["realme","X2 Pro",false],
+  ["realme","X3 Super Zoom",false],
+  ["realme","X7 5G",false],
+  ["realme","X7 Pro 5G",false],
+  ["realme","X50 Pro",false],
+  ["realme","realme GT 2 Pro",true],
+  ["realme","realme GT 3 240W",true],
+  ["realme","realme GT 5",true],
+  ["realme","realme GT 5 240W",true],
+  ["realme","realme GT 5G",false],
+  ["realme","realme GT 7T",true],
+  ["realme","realme GT Neo",true],
+  ["realme","realme GT Neo 3",true],
+  ["realme","realme GT Neo 3T",true],
+  ["realme","realme GT Neo 5",true],
+  ["realme","realme 9 5G",true],
+  ["realme","realme 9 Pro 5G",true],
+  ["realme","realme 9 Pro+",true],
+  ["realme","realme 10 Pro 5G",true],
+  ["realme","realme 10 Pro+ 5G",true],
+  ["realme","realme 11 5G",true],
+  ["realme","realme 11 Pro 5G",true],
+  ["realme","realme 11 Pro+",true],
+  ["realme","realme 11x 5G",true],
+  ["realme","realme 13 5G",true],
+  ["realme","realme 13 Pro 5G",true],
+  ["realme","realme 13+ 5G",true],
+  ["realme","realme 14 5G",true],
+  ["realme","realme 14 Pro 5G",true],
+  ["realme","Narzo 60x 5G",true],
+  ["realme","realme P3 Ultra 5G",true],
+  // redmi
+  ["Redmi","Redmi Note 14",true],
+  ["Redmi","Redmi Pad Pro",true],
+  // Samsung
+  ["Samsung","Galaxy A3 (2017)",false],
+  ["Samsung","Galaxy A5 (2017)",false],
+  ["Samsung","Galaxy A6 (2018)",false],
+  ["Samsung","Galaxy A7 (2017)",false],
+  ["Samsung","Galaxy A7 (2018)",false],
+  ["Samsung","Galaxy A8",false],
+  ["Samsung","Galaxy A8+ (2018)",false],
+  ["Samsung","Galaxy A13 5G",false],
+  ["Samsung","Galaxy A14 5G",false],
+  ["Samsung","Galaxy A15 5G",true],
+  ["Samsung","Galaxy A16 5G",true],
+  ["Samsung","Galaxy A20",false],
+  ["Samsung","Galaxy A20s",false],
+  ["Samsung","Galaxy A20e",false],
+  ["Samsung","Galaxy A22",false],
+  ["Samsung","Galaxy A22 5G",false],
+  ["Samsung","Galaxy A23",false],
+  ["Samsung","Galaxy A23 5G",false],
+  ["Samsung","Galaxy A24",false],
+  ["Samsung","Galaxy A25 5G",false],
+  ["Samsung","Galaxy A26 5G",true],
+  ["Samsung","Galaxy A30",false],
+  ["Samsung","Galaxy A30s",false],
+  ["Samsung","Galaxy A31",false],
+  ["Samsung","Galaxy A32",false],
+  ["Samsung","Galaxy A32 5G",false],
+  ["Samsung","Galaxy A33 5G",false],
+  ["Samsung","Galaxy A34 5G",false],
+  ["Samsung","Galaxy A35 5G",true],
+  ["Samsung","Galaxy A36 5G",true],
+  ["Samsung","Galaxy A40",false],
+  ["Samsung","Galaxy A41",false],
+  ["Samsung","Galaxy A42 5G",true],
+  ["Samsung","Galaxy A50",false],
+  ["Samsung","Galaxy A50s",false],
+  ["Samsung","Galaxy A51",false],
+  ["Samsung","Galaxy A51 5G",true],
+  ["Samsung","Galaxy A52",true],
+  ["Samsung","Galaxy A52 5G",true],
+  ["Samsung","Galaxy A52s 5G",true],
+  ["Samsung","Galaxy A53 5G",true],
+  ["Samsung","Galaxy A54 5G",true],
+  ["Samsung","Galaxy A55 5G",true],
+  ["Samsung","Galaxy A56 5G",true],
+  ["Samsung","Galaxy A60",false],
+  ["Samsung","Galaxy A70",false],
+  ["Samsung","Galaxy A70s",false],
+  ["Samsung","Galaxy A71",false],
+  ["Samsung","Galaxy A71 5G",true],
+  ["Samsung","Galaxy A72",true],
+  ["Samsung","Galaxy A73 5G",true],
+  ["Samsung","Galaxy A80",true],
+  ["Samsung","Galaxy A90 5G",true],
+  ["Samsung","Galaxy F14 5G",true],
+  ["Samsung","Galaxy F22",false],
+  ["Samsung","Galaxy F23 5G",false],
+  ["Samsung","Galaxy F34 5G",true],
+  ["Samsung","Galaxy F41",false],
+  ["Samsung","Galaxy F42 5G",false],
+  ["Samsung","Galaxy F54 5G",true],
+  ["Samsung","Galaxy F62",false],
+  ["Samsung","Galaxy Fold",true],
+  ["Samsung","Galaxy J5 (2017)",false],
+  ["Samsung","Galaxy J5 Pro",false],
+  ["Samsung","Galaxy J7 (2017)",false],
+  ["Samsung","Galaxy J7 Pro",false],
+  ["Samsung","Galaxy Jump3",true],
+  ["Samsung","Galaxy M14 5G",true],
+  ["Samsung","Galaxy M15 5G",true],
+  ["Samsung","Galaxy M20",false],
+  ["Samsung","Galaxy M21",false],
+  ["Samsung","Galaxy M22",false],
+  ["Samsung","Galaxy M23 5G",false],
+  ["Samsung","Galaxy M30s",false],
+  ["Samsung","Galaxy M31",false],
+  ["Samsung","Galaxy M31s",false],
+  ["Samsung","Galaxy M32",false],
+  ["Samsung","Galaxy M33 5G",false],
+  ["Samsung","Galaxy M34 5G",true],
+  ["Samsung","Galaxy M51",false],
+  ["Samsung","Galaxy M52 5G",true],
+  ["Samsung","Galaxy M53 5G",true],
+  ["Samsung","Galaxy M54 5G",true],
+  ["Samsung","Galaxy M62",false],
+  ["Samsung","Galaxy Note8",true],
+  ["Samsung","Galaxy Note9",true],
+  ["Samsung","Galaxy Note10",true],
+  ["Samsung","Galaxy Note10 5G",true],
+  ["Samsung","Galaxy Note10+",true],
+  ["Samsung","Galaxy Note10+ 5G",true],
+  ["Samsung","Galaxy Note10 Lite",true],
+  ["Samsung","Galaxy Note20 5G",true],
+  ["Samsung","Galaxy Note20 Ultra 5G",true],
+  ["Samsung","Galaxy Quantum2",true],
+  ["Samsung","Galaxy Quantum3",true],
+  ["Samsung","Galaxy S7",false],
+  ["Samsung","Galaxy S7 edge",false],
+  ["Samsung","Galaxy S8",true],
+  ["Samsung","Galaxy S8+",true],
+  ["Samsung","Galaxy S9 Exynos",true],
+  ["Samsung","Galaxy S9 Qualcomm",true],
+  ["Samsung","Galaxy S9+ Exynos",true],
+  ["Samsung","Galaxy S9+ Qualcomm",true],
+  ["Samsung","Galaxy S10",true],
+  ["Samsung","Galaxy S10 5G",true],
+  ["Samsung","Galaxy S10+",true],
+  ["Samsung","Galaxy S10e",true],
+  ["Samsung","Galaxy S20",true],
+  ["Samsung","Galaxy S20 5G",true],
+  ["Samsung","Galaxy S20+",true],
+  ["Samsung","Galaxy S20+ 5G",true],
+  ["Samsung","Galaxy S20 Ultra 5G",true],
+  ["Samsung","Galaxy S20 FE",true],
+  ["Samsung","Galaxy S20 FE 5G",true],
+  ["Samsung","Galaxy S21",true],
+  ["Samsung","Galaxy S21 5G",true],
+  ["Samsung","Galaxy S21+",true],
+  ["Samsung","Galaxy S21+ 5G",true],
+  ["Samsung","Galaxy S21 Ultra 5G",true],
+  ["Samsung","Galaxy S21 FE 5G",true],
+  ["Samsung","Galaxy S22",true],
+  ["Samsung","Galaxy S22+",true],
+  ["Samsung","Galaxy S22 Ultra",true],
+  ["Samsung","Galaxy S23",true],
+  ["Samsung","Galaxy S23+",true],
+  ["Samsung","Galaxy S23 Ultra",true],
+  ["Samsung","Galaxy S23 FE",true],
+  ["Samsung","Galaxy S24",true],
+  ["Samsung","Galaxy S24+",true],
+  ["Samsung","Galaxy S24 Ultra",true],
+  ["Samsung","Galaxy S24 FE",true],
+  ["Samsung","Galaxy S25",true],
+  ["Samsung","Galaxy S25+",true],
+  ["Samsung","Galaxy S25 Ultra",true],
+  ["Samsung","Galaxy Tab A 10.1 (2019)",false],
+  ["Samsung","Galaxy Tab A7 Lite",false],
+  ["Samsung","Galaxy Tab A8",false],
+  ["Samsung","Galaxy Tab A9",true],
+  ["Samsung","Galaxy Tab A9+",true],
+  ["Samsung","Galaxy Tab S4",false],
+  ["Samsung","Galaxy Tab S5e",true],
+  ["Samsung","Galaxy Tab S6",true],
+  ["Samsung","Galaxy Tab S6 Lite",true],
+  ["Samsung","Galaxy Tab S7",true],
+  ["Samsung","Galaxy Tab S7+",true],
+  ["Samsung","Galaxy Tab S7 FE",true],
+  ["Samsung","Galaxy Tab S8",true],
+  ["Samsung","Galaxy Tab S8+",true],
+  ["Samsung","Galaxy Tab S8 Ultra",true],
+  ["Samsung","Galaxy Tab S9",true],
+  ["Samsung","Galaxy Tab S9+",true],
+  ["Samsung","Galaxy Tab S9 Ultra",true],
+  ["Samsung","Galaxy Tab S9 FE",true],
+  ["Samsung","Galaxy Tab S10",true],
+  ["Samsung","Galaxy Tab S10+",true],
+  ["Samsung","Galaxy Tab S10 Ultra",true],
+  ["Samsung","Galaxy Z Flip",true],
+  ["Samsung","Galaxy Z Flip3 5G",true],
+  ["Samsung","Galaxy Z Flip4",true],
+  ["Samsung","Galaxy Z Flip5",true],
+  ["Samsung","Galaxy Z Flip6",true],
+  ["Samsung","Galaxy Z Fold2",true],
+  ["Samsung","Galaxy Z Fold3 5G",true],
+  ["Samsung","Galaxy Z Fold4",true],
+  ["Samsung","Galaxy Z Fold5",true],
+  ["Samsung","Galaxy Z Fold6",true],
+  // Sharp
+  ["Sharp","AQUOS R5G",true],
+  ["Sharp","AQUOS R6",true],
+  ["Sharp","AQUOS R7",true],
+  ["Sharp","AQUOS R8",true],
+  ["Sharp","AQUOS R9",true],
+  ["Sharp","AQUOS sense6",true],
+  ["Sharp","AQUOS sense7",true],
+  ["Sharp","AQUOS sense8",true],
+  ["Sharp","AQUOS wish3",true],
+  // Sony
+  ["Sony","Xperia 1",true],
+  ["Sony","Xperia 1 II",true],
+  ["Sony","Xperia 1 III",true],
+  ["Sony","Xperia 1 IV",true],
+  ["Sony","Xperia 1 V",true],
+  ["Sony","Xperia 1 VI",true],
+  ["Sony","Xperia 5",true],
+  ["Sony","Xperia 5 II",true],
+  ["Sony","Xperia 5 III",true],
+  ["Sony","Xperia 5 IV",true],
+  ["Sony","Xperia 5 V",true],
+  ["Sony","Xperia 10 II",true],
+  ["Sony","Xperia 10 III",true],
+  ["Sony","Xperia 10 IV",true],
+  ["Sony","Xperia 10 V",true],
+  ["Sony","Xperia 10 VI",true],
+  ["Sony","Xperia XZ1",false],
+  ["Sony","Xperia XZ2",true],
+  ["Sony","Xperia XZ2 Compact",true],
+  ["Sony","Xperia XZ2 Premium",true],
+  ["Sony","Xperia XZ3",true],
+  // Tecno
+  ["Tecno","SPARK 20 Pro+",true],
+  ["Tecno","CAMON 20 Premier",true],
+  ["Tecno","CAMON 30 5G",true],
+  ["Tecno","PHANTOM V Fold2 5G",true],
+  ["Tecno","PHANTOM X2",true],
+  ["Tecno","POVA 6 Pro 5G",true],
+  // Vivo
+  ["vivo","iQOO 3",true],
+  ["vivo","iQOO 5",true],
+  ["vivo","iQOO 7",true],
+  ["vivo","iQOO 8",true],
+  ["vivo","iQOO 9",true],
+  ["vivo","iQOO 11",true],
+  ["vivo","iQOO 12",true],
+  ["vivo","iQOO Neo6",true],
+  ["vivo","iQOO Neo7",true],
+  ["vivo","iQOO Neo8",true],
+  ["vivo","iQOO Neo9",true],
+  ["vivo","iQOO Z6",true],
+  ["vivo","iQOO Z7",true],
+  ["vivo","iQOO Z8",true],
+  ["vivo","iQOO Z9",true],
+  ["vivo","V21 5G",true],
+  ["vivo","V23 5G",true],
+  ["vivo","V25",true],
+  ["vivo","V27",true],
+  ["vivo","V29",true],
+  ["vivo","V30",true],
+  ["vivo","V40",true],
+  ["vivo","X50",true],
+  ["vivo","X60",true],
+  ["vivo","X70",true],
+  ["vivo","X80",true],
+  ["vivo","X90",true],
+  ["vivo","X100",true],
+  ["vivo","X200",true],
+  ["vivo","Y75 5G",true],
+  ["vivo","Y100",true],
+  // Xiaomi
+  ["Xiaomi","Mi 8",true],
+  ["Xiaomi","Mi 9",true],
+  ["Xiaomi","Mi 9T",true],
+  ["Xiaomi","Mi 9T Pro",true],
+  ["Xiaomi","Mi 10",true],
+  ["Xiaomi","Mi 10 Pro",true],
+  ["Xiaomi","Mi 10T",true],
+  ["Xiaomi","Mi 10T Pro",true],
+  ["Xiaomi","Mi 11",true],
+  ["Xiaomi","Mi 11 Lite",true],
+  ["Xiaomi","Mi 11 Ultra",true],
+  ["Xiaomi","Mi Mix 3",true],
+  ["Xiaomi","Mi Mix 4",true],
+  ["Xiaomi","Poco F1",false],
+  ["Xiaomi","POCO F2 Pro",true],
+  ["Xiaomi","POCO F3",true],
+  ["Xiaomi","POCO F4",true],
+  ["Xiaomi","POCO F5",true],
+  ["Xiaomi","POCO F6",true],
+  ["Xiaomi","POCO F6 Pro",true],
+  ["Xiaomi","POCO M3",false],
+  ["Xiaomi","POCO M3 Pro 5G",true],
+  ["Xiaomi","POCO M4",true],
+  ["Xiaomi","POCO M5",true],
+  ["Xiaomi","POCO M6 Pro",true],
+  ["Xiaomi","POCO X3",true],
+  ["Xiaomi","POCO X3 NFC",true],
+  ["Xiaomi","POCO X3 Pro",true],
+  ["Xiaomi","POCO X4 Pro 5G",true],
+  ["Xiaomi","POCO X5",true],
+  ["Xiaomi","POCO X5 Pro 5G",true],
+  ["Xiaomi","POCO X6",true],
+  ["Xiaomi","POCO X6 Pro",true],
+  ["Xiaomi","Redmi Note 8",false],
+  ["Xiaomi","Redmi Note 8 Pro",true],
+  ["Xiaomi","Redmi Note 9",false],
+  ["Xiaomi","Redmi Note 9 Pro",true],
+  ["Xiaomi","Redmi Note 10",false],
+  ["Xiaomi","Redmi Note 10 Pro",true],
+  ["Xiaomi","Redmi Note 11",true],
+  ["Xiaomi","Redmi Note 11 Pro",true],
+  ["Xiaomi","Redmi Note 11 Pro+ 5G",true],
+  ["Xiaomi","Redmi Note 12",true],
+  ["Xiaomi","Redmi Note 12 Pro",true],
+  ["Xiaomi","Redmi Note 12 Pro+",true],
+  ["Xiaomi","Redmi Note 13",true],
+  ["Xiaomi","Redmi Note 13 Pro",true],
+  ["Xiaomi","Redmi Note 13 Pro+",true],
+  ["Xiaomi","Redmi Note 14 Pro",true],
+  ["Xiaomi","Xiaomi 11T",true],
+  ["Xiaomi","Xiaomi 11T Pro",true],
+  ["Xiaomi","Xiaomi 12",true],
+  ["Xiaomi","Xiaomi 12 Pro",true],
+  ["Xiaomi","Xiaomi 12T",true],
+  ["Xiaomi","Xiaomi 12T Pro",true],
+  ["Xiaomi","Xiaomi 13",true],
+  ["Xiaomi","Xiaomi 13 Pro",true],
+  ["Xiaomi","Xiaomi 13T",true],
+  ["Xiaomi","Xiaomi 13T Pro",true],
+  ["Xiaomi","Xiaomi 14",true],
+  ["Xiaomi","Xiaomi 14 Pro",true],
+  ["Xiaomi","Xiaomi 14T",true],
+  ["Xiaomi","Xiaomi 14T Pro",true],
+  ["Xiaomi","Xiaomi 14 Ultra",true],
+  ["Xiaomi","Xiaomi 15",true],
+  ["Xiaomi","Xiaomi 15 Pro",true],
+  ["Xiaomi","Xiaomi HyperOS Pad",true],
+  ["Xiaomi","Xiaomi Pad 5",true],
+  ["Xiaomi","Xiaomi Pad 6",true],
+  ["Xiaomi","Xiaomi Pad 6 Pro",true],
+];
+
+// Build search index
+const searchIndex = DEVICES.map(([mfr, model, depth]) => ({
+  mfr, model, depth,
+  searchKey: (mfr + ' ' + model).toLowerCase()
+    .replace(/[⁵ˢ⁷⁸⁹⁶]/g, s => ({
+      '⁵':'5','ˢ':'s','⁷':'7','⁸':'8','⁹':'9','⁶':'6'
+    }[s] || s))
+}));
+
+function normalizeQuery(q) {
+  return q.toLowerCase().trim()
+    .replace(/[⁵ˢ⁷⁸⁹⁶]/g, s => ({
+      '⁵':'5','ˢ':'s','⁷':'7','⁸':'8','⁹':'9','⁶':'6'
+    }[s] || s));
+}
+
+function findMatches(query, limit = 8) {
+  if (!query || query.length < 2) return [];
+  const q = normalizeQuery(query);
+  const words = q.split(/\s+/).filter(Boolean);
+  return searchIndex
+    .filter(d => words.every(w => d.searchKey.includes(w)))
+    .slice(0, limit);
+}
+
+function findExact(query) {
+  const q = normalizeQuery(query);
+  // Try exact match on model name first
+  let found = searchIndex.find(d => d.searchKey === q);
+  if (found) return found;
+  // Try matching just model
+  found = searchIndex.find(d => normalizeQuery(d.model) === q);
+  if (found) return found;
+  // Try mfr + model combination
+  return searchIndex.find(d => {
+    const combined = normalizeQuery(d.mfr + ' ' + d.model);
+    return combined === q || d.searchKey.startsWith(q) || q.startsWith(normalizeQuery(d.model));
+  }) || null;
+}
+
+function findBestMatch(query) {
+  const q = normalizeQuery(query);
+  const words = q.split(/\s+/).filter(Boolean);
+  const matches = searchIndex.filter(d => words.every(w => d.searchKey.includes(w)));
+  if (matches.length === 0) return null;
+  // Score by closeness
+  matches.sort((a, b) => {
+    const aScore = Math.abs(a.searchKey.length - q.length);
+    const bScore = Math.abs(b.searchKey.length - q.length);
+    return aScore - bScore;
+  });
+  return matches[0];
+}
+
+// ---- UI ----
+const input = document.getElementById('deviceInput');
+const suggestionsEl = document.getElementById('suggestions');
+const resultEl = document.getElementById('result');
+let activeIdx = -1;
+let currentSuggestions = [];
+
+input.addEventListener('input', () => {
+  const v = input.value;
+  currentSuggestions = findMatches(v);
+  activeIdx = -1;
+  renderSuggestions(currentSuggestions);
+});
+
+input.addEventListener('keydown', e => {
+  if (!currentSuggestions.length) {
+    if (e.key === 'Enter') { checkDevice(); return; }
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    activeIdx = Math.min(activeIdx + 1, currentSuggestions.length - 1);
+    updateActiveItem();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    activeIdx = Math.max(activeIdx - 1, -1);
+    updateActiveItem();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (activeIdx >= 0) {
+      selectSuggestion(currentSuggestions[activeIdx]);
+    } else {
+      checkDevice();
+    }
+  } else if (e.key === 'Escape') {
+    hideSuggestions();
+  }
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-box')) hideSuggestions();
+});
+
+function renderSuggestions(items) {
+  if (!items.length) { hideSuggestions(); return; }
+  suggestionsEl.innerHTML = items.map((d, i) => `
+    <div class="suggestion-item" data-idx="${i}">
+      <span class="mfr">${d.mfr}</span>${d.model}
+      ${d.depth ? '<span class="depth-tag">Depth API</span>' : ''}
+    </div>
+  `).join('');
+  suggestionsEl.classList.add('visible');
+  suggestionsEl.querySelectorAll('.suggestion-item').forEach((el, i) => {
+    el.addEventListener('click', () => selectSuggestion(currentSuggestions[i]));
+    el.addEventListener('mouseenter', () => { activeIdx = i; updateActiveItem(); });
+  });
+}
+
+function updateActiveItem() {
+  suggestionsEl.querySelectorAll('.suggestion-item').forEach((el, i) => {
+    el.classList.toggle('active', i === activeIdx);
+  });
+}
+
+function hideSuggestions() {
+  suggestionsEl.classList.remove('visible');
+  suggestionsEl.innerHTML = '';
+}
+
+function selectSuggestion(device) {
+  input.value = device.mfr + ' ' + device.model;
+  hideSuggestions();
+  showResult(device);
+}
+
+function checkDevice() {
+  hideSuggestions();
+  const query = input.value.trim();
+  if (!query) return;
+  const device = findBestMatch(query);
+  if (device) {
+    showResult(device);
+  } else {
+    showNotFound(query);
+  }
+}
+
+function showResult(device) {
+  const el = resultEl;
+  el.className = 'result visible ' + (device.depth ? 'ar-mr' : 'ar-only');
+
+  document.getElementById('resultBadge').textContent = device.depth ? '✦ AR + MR поддерживается' : '✦ AR поддерживается';
+  document.getElementById('resultTitle').textContent = device.depth
+    ? 'Поддерживает AR и MR'
+    : 'Поддерживает AR';
+  document.getElementById('resultDevice').textContent = device.mfr + ' · ' + device.model;
+  document.getElementById('resultDesc').textContent = device.depth
+    ? 'Устройство прошло сертификацию ARCore и поддерживает Depth API (API глубины), что необходимо для MR-функций: окклюзия, depth meshing и смешанная реальность.'
+    : 'Устройство прошло сертификацию ARCore и поддерживает базовый AR. Depth API (необходимый для MR) на этом устройстве не доступен.';
+
+  const caps = document.getElementById('capsList');
+  caps.innerHTML = `
+    <span class="cap on">ARCore</span>
+    <span class="cap on">Отслеживание движения</span>
+    <span class="cap on">Распознавание плоскостей</span>
+    ${device.depth ? '<span class="cap on depth">Depth API</span><span class="cap on depth">Окклюзия</span><span class="cap on depth">MR-режим</span>' : '<span class="cap">Depth API</span><span class="cap">MR-режим</span>'}
+  `;
+}
+
+function showNotFound(query) {
+  const el = resultEl;
+  el.className = 'result visible not-found';
+  document.getElementById('resultBadge').textContent = '✕ Не найдено';
+  document.getElementById('resultTitle').textContent = 'Устройство не найдено';
+  document.getElementById('resultDevice').textContent = `Запрос: "${query}"`;
+  document.getElementById('resultDesc').textContent = 'Устройство отсутствует в списке сертифицированных ARCore устройств. Проверь название или посмотри полный список на сайте Google.';
+  document.getElementById('capsList').innerHTML = `
+    <a href="https://developers.google.com/ar/devices?hl=ru" target="_blank" style="font-family:var(--font-mono);font-size:0.75rem;color:var(--accent-no);text-decoration:none;border-bottom:1px solid rgba(255,77,109,0.3);">
+      Открыть полный список →
+    </a>
+  `;
+}
+</script>
+</body>
+</html>
